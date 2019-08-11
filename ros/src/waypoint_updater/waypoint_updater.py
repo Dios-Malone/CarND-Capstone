@@ -34,9 +34,9 @@ LOOKAHEAD_WPS = 100 # Number of waypoints we will publish. You can change this n
 # *Begin*
 MAX_DECEL = 0.5
 STOP_DISTANCE = 5.0
-TARGET_SPEED_MPH = 35
+TARGET_SPEED_MPH = 35 #not in use
 # convert 10 miles per hour to meters per sec
-TARGET_SPEED_mps = (TARGET_SPEED_MPH * 1609.34) / (60 * 60)
+TARGET_SPEED_mps = (TARGET_SPEED_MPH * 1609.34) / (60 * 60) #not in use
 
 class CarState(Enum):
     DRIVING = 0
@@ -65,6 +65,7 @@ class WaypointUpdater(object):
         self.stop_waypoint = 1
         self.state = CarState.STOPPED
         self.count_to_publish = 0
+        self.max_mps = 0
 
         rospy.spin()
 
@@ -75,6 +76,7 @@ class WaypointUpdater(object):
     def waypoints_cb(self, waypoints):
         # Callback for /base_waypoints
         # Publish to /base_waypoints only once
+        self.max_mps = max([wp.twist.twist.linear.x for wp in waypoints.waypoints])
         wp_count = len(waypoints.waypoints)
         if self.waypoints is None:
             self.waypoints = waypoints.waypoints
@@ -177,7 +179,7 @@ class WaypointUpdater(object):
                 # set the velocity for lookahead waypoints
                 for i in range(len(lookahead_waypoints) - 1):
                     # convert 10 miles per hour to meters per sec
-                    self.set_waypoint_velocity(lookahead_waypoints, i, TARGET_SPEED_mps)
+                    self.set_waypoint_velocity(lookahead_waypoints, i, self.max_mps)
             # elif self.stop_waypoint == -4: #Unknown light
             #     cur_velocity = self.get_waypoint_velocity(self.waypoints[next_waypoint_index])
             #     # set the velocity for lookahead waypoints
@@ -193,7 +195,6 @@ class WaypointUpdater(object):
             lane.header.frame_id = '/world'
             lane.header.stamp = rospy.Time(0)
             lane.waypoints = lookahead_waypoints
-
             self.final_waypoints_pub.publish(lane)
 
 
