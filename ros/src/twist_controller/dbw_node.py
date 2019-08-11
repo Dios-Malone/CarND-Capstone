@@ -111,7 +111,7 @@ class DBWNode(object):
                 self.publish(throttle, brake, steering)
             else:
                 self.controller.reset()
-
+                
             self.previous_time = current_time
             rate.sleep()
 
@@ -119,7 +119,7 @@ class DBWNode(object):
         self.current_velocity = msg
 
     def dbw_enabled_cb(self, msg):
-        self.dbw_enabled = msg
+        self.dbw_enabled = "True" in str(msg)
 
     def twist_cmd_cb(self, msg):
         self.twist_cmd = msg
