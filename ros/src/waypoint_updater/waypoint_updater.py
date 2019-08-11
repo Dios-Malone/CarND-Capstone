@@ -3,6 +3,7 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
+from enum import Enum
 
 import math
 
@@ -27,20 +28,19 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 100 # Number of waypoints we will publish. You can change this number
 
 '''Define new constants'''
 # *Begin*
 MAX_DECEL = 0.5
 STOP_DISTANCE = 5.0
-TARGET_SPEED_MPH = 10
-# Waypoint publish rate - reading 20 points ahead of time
-PUBLISH_RATE = 20
-# *End*
+TARGET_SPEED_MPH = 35
+# convert 10 miles per hour to meters per sec
+TARGET_SPEED_mps = (TARGET_SPEED_MPH * 1609.34) / (60 * 60)
 
-# class CarState(Enum):
-#     DRIVING = 0
-#     STOPPED = 1
+class CarState(Enum):
+    DRIVING = 0
+    STOPPED = 1
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -62,8 +62,9 @@ class WaypointUpdater(object):
         # TODO: Add other member variables you need below
         self.cur_pose = None
         self.waypoints = None
-        self.stop_waypoint = None
-        # self.state = CarState.DRIVING
+        self.stop_waypoint = 1
+        self.state = CarState.STOPPED
+        self.count_to_publish = 0
         # Define acceptable acceleration and jerk parameters to ensure smooth motion
         #self.accel_limit = rospy.get_param('~accel_limit', 1.)
         # DONE
@@ -71,31 +72,29 @@ class WaypointUpdater(object):
         rospy.spin()
 
     def pose_cb(self, msg):
-        # TODO: Implement
         self.cur_pose = msg.pose
-        if self.waypoints is not None:
-            self.publish()
+        self.publish()
 
     def waypoints_cb(self, lane):
-        # TODO: Callback for /base_waypoints
+        # Callback for /base_waypoints
         # Publish to /base_waypoints only once
         wp_count = len(lane.waypoints)
         if self.waypoints is None:
             self.waypoints = lane.waypoints
 
     def traffic_cb(self, msg):
-        # TODO: Callback for /traffic_waypoint message. Implement
+        # Callback for /traffic_waypoint message. Implement
         self.stop_waypoint = msg.data
-        # if msg.data:
-        #     self.stop_waypoint = msg.data
-        #     self.state = CarState.STOPPED
-        # else:
-        #     self.stop_waypoint = None
-        #     self.state = CarState.DRIVING
+        if msg.data:
+             self.stop_waypoint = msg.data
+             self.state = CarState.STOPPED
+        else:
+             self.stop_waypoint = None
+             self.state = CarState.DRIVING
 
         #rospy.loginfo("Detected light: " + str(msg.data))
-        if self.stop_waypoint > -1:
-        #if self.state == CarState.STOPPED:
+        #if self.stop_waypoint > -1:
+        if self.state == CarState.STOPPED:
             self.publish()
 
     def obstacle_cb(self, msg):
@@ -172,7 +171,6 @@ class WaypointUpdater(object):
                 if vel < 1.:
                     vel = 0.
             wp.twist.twist.linear.x = min(vel, wp.twist.twist.linear.x)
-
         return waypoints
 
     def publish(self):
@@ -181,16 +179,21 @@ class WaypointUpdater(object):
             next_waypoint_index = self.next_waypoint(self.cur_pose, self.waypoints)
             lookahead_waypoints = self.waypoints[next_waypoint_index:next_waypoint_index+LOOKAHEAD_WPS]
 
-            if self.stop_waypoint is None or self.stop_waypoint < 0:
-
+            if self.stop_waypoint is None or self.stop_waypoint == -2: #Green light
                 # set the velocity for lookahead waypoints
                 for i in range(len(lookahead_waypoints) - 1):
                     # convert 10 miles per hour to meters per sec
-                    self.set_waypoint_velocity(lookahead_waypoints, i, (TARGET_SPEED_MPH * 1609.34) / (60 * 60))
-
+                    self.set_waypoint_velocity(lookahead_waypoints, i, TARGET_SPEED_mps)
+            elif self.stop_waypoint == -4: #Unknown light
+                cur_velocity = self.get_waypoint_velocity(self.waypoints[next_waypoint_index])
+                # set the velocity for lookahead waypoints
+                for i in range(len(lookahead_waypoints) - 1):
+                    # convert 10 miles per hour to meters per sec
+                    self.set_waypoint_velocity(lookahead_waypoints, i, max(cur_velocity, TARGET_SPEED_mps/3))
             else:
                 redlight_lookahead_index = max(0, self.stop_waypoint - next_waypoint_index)
-                lookahead_waypoints = self.decelerate(lookahead_waypoints, redlight_lookahead_index)
+                if redlight_lookahead_index < LOOKAHEAD_WPS:
+                    lookahead_waypoints = self.decelerate(lookahead_waypoints, redlight_lookahead_index)
 
             lane = Lane()
             lane.header.frame_id = '/world'
