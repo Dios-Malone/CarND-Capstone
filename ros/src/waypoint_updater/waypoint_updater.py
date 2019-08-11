@@ -173,17 +173,17 @@ class WaypointUpdater(object):
             next_waypoint_index = self.next_waypoint(self.cur_pose, self.waypoints)
             lookahead_waypoints = self.waypoints[next_waypoint_index:next_waypoint_index+LOOKAHEAD_WPS]
 
-            if self.stop_waypoint is None or self.stop_waypoint == -2: #Green light
+            if self.stop_waypoint is None or self.stop_waypoint < 0: #Green light
                 # set the velocity for lookahead waypoints
                 for i in range(len(lookahead_waypoints) - 1):
                     # convert 10 miles per hour to meters per sec
                     self.set_waypoint_velocity(lookahead_waypoints, i, TARGET_SPEED_mps)
-            elif self.stop_waypoint == -4: #Unknown light
-                cur_velocity = self.get_waypoint_velocity(self.waypoints[next_waypoint_index])
-                # set the velocity for lookahead waypoints
-                for i in range(len(lookahead_waypoints) - 1):
-                    # convert 10 miles per hour to meters per sec
-                    self.set_waypoint_velocity(lookahead_waypoints, i, max(cur_velocity, TARGET_SPEED_mps/3))
+            # elif self.stop_waypoint == -4: #Unknown light
+            #     cur_velocity = self.get_waypoint_velocity(self.waypoints[next_waypoint_index])
+            #     # set the velocity for lookahead waypoints
+            #     for i in range(len(lookahead_waypoints) - 1):
+            #         # convert 10 miles per hour to meters per sec
+            #         self.set_waypoint_velocity(lookahead_waypoints, i, max(cur_velocity, TARGET_SPEED_mps*i/len(lookahead_waypoints)))
             else:
                 redlight_lookahead_index = max(0, self.stop_waypoint - next_waypoint_index)
                 if redlight_lookahead_index < LOOKAHEAD_WPS:

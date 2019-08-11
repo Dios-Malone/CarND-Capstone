@@ -7,6 +7,7 @@ from styx_msgs.msg import Lane
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
+from scipy.spatial import KDTree
 import tf
 import cv2
 import yaml
@@ -90,13 +91,19 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
-                
-        if (state == TrafficLight.GREEN) and self.state_count < STATE_COUNT_THRESHOLD:
-            self.state_count += 1
-        else:
-            self.state_count = 0
+        
+        if (state == TrafficLight.RED):
             self.state = state
-            #self.last_state = self.state
+            self.state_count = 0
+            self.last_state = state
+        elif self.last_state == state and self.state_count < STATE_COUNT_THRESHOLD:
+            self.state_count += 1
+        elif self.last_state == state and self.state_count >= STATE_COUNT_THRESHOLD:
+            self.state = state
+        elif self.last_state != state:
+            self.state_count = 0
+            self.last_state = state
+
             
         if self.state == TrafficLight.RED:
             light_wp = light_wp
